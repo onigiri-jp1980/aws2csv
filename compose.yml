@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - USER_NAME=${USER_NAME}
+        - USER_ID=${USER_ID}
+        - GROUP_ID=${GROUP_ID}
+        - GROUP_NAME=${GROUP_NAME}
+    volumes:
+      - ./app:/app
+      - /home/${USER_NAME}/.aws:/home/${USER_NAME}/.aws
+    working_dir: /app
+    command: ["bash"]
+    user: ${USER_NAME}
+    environment:
+      - USER_ID=${USER_ID}
+      - USER_NAME=${USER_NAME}
