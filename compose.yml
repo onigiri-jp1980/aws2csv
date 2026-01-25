@@ -17,3 +17,4 @@ services:
     environment:
       - USER_ID=${USER_ID}
       - USER_NAME=${USER_NAME}
+      - AWS_PROFILE=${AWS_PROFILE}
