@@ -3,3 +3,5 @@ __pycache__/
 
 app/*.json
 app/*.csv
+
+.python-version
