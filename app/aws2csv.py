@@ -34,6 +34,8 @@ def get_headers():
 
 # AWSデータを取り扱うクラス
 class AwsData:
+    _skip_s3_usage: bool = False
+    _debug: bool = False
     ec2: list[Dict] = []
     rds: list[Dict] = []
     vpc: list[Dict] = []
@@ -184,12 +186,15 @@ class AwsData:
         paginator = self.clients.s3.get_paginator('list_buckets')
         for page in paginator.paginate():
             for bucket in page['Buckets']:
-                #bucket['Usage'] = self._get_s3_bucket_usage(bucket)
+                if not self._skip_s3_usage:
+                    bucket['Usage'] = self._get_s3_bucket_usage(bucket)
                 s3.append(bucket)
         return s3
 
     #オブジェクトサイズを集計
     def _get_s3_bucket_usage(self, bucket: Dict) -> Dict:
+        if self._debug:
+            print(f'バケット{bucket["Name"]}のオブジェクトサイズを集計します')
         objects = []
         paginator = self.clients.s3.get_paginator('list_objects')
         for page in paginator.paginate(
