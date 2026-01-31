@@ -188,6 +188,7 @@ class AwsData:
                 s3.append(bucket)
         return s3
 
+    #オブジェクトサイズを集計
     def _get_s3_bucket_usage(self, bucket: Dict) -> Dict:
         objects = []
         paginator = self.clients.s3.get_paginator('list_objects')
