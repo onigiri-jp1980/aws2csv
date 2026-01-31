@@ -318,6 +318,13 @@ def export_sg_rules_csv(region: str, out_path: str, vpc_id: Optional[str] = None
                     for row in _perm_to_rows(sg, "egress", perm):
                         w.writerow(row)
 
+# コマンドライン引数をパース
+def parse_args():
+    parser=ArgumentParser(formatter_class=RawTextHelpFormatter)
+    parser.add_argument('--profile', type=str, default='default', help='AWS profile name')
+    parser.add_argument('--region', type=str, default='us-east-1', help='AWS region name')
+    parser.add_argument('--service', type=str, default='ec2', help='AWS service name')
+    return parser.parse_args()
 
 
 
