@@ -18,3 +18,4 @@ services:
       - USER_ID=${USER_ID}
       - USER_NAME=${USER_NAME}
       - AWS_PROFILE=${AWS_PROFILE}
+      - AWS_REGION=${AWS_REGION}
