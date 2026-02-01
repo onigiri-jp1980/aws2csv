@@ -191,15 +191,17 @@ class AwsData:
     # S3を取得
     def get_s3(self) -> List[Dict]:
         s3 = []
-        buckets = self.clients.s3.list_buckets()
-        with tqdm(total=len(buckets['Buckets']), desc='S3バケットの情報を取得しています') as pbar:
+        with tqdm(total=self._get_s3_bucket_count(), desc='S3バケットの情報を取得しています') as pbar:
             for bucket in buckets['Buckets']:
                 if not self._skip_s3_usage:
                     bucket['Usage'] = self._get_s3_bucket_usage(bucket)
-                pbar.update(1)
+                pbar.update(1,f'S3バケット`{bucket["Name"]}`の情報を取得しています')
                 s3.append(bucket)
             return s3
-
+    #S3バケットの数をを集計
+    def _get_s3_bucket_count(self) -> int:
+        buckets = self.clients.s3.list_buckets()
+        return len(buckets['Buckets'])
     #オブジェクトサイズを集計
     def _get_s3_bucket_usage(self, bucket: Dict) -> Dict:
         if self._debug:
