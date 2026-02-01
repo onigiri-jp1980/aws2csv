@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import json, csv
 from os import environ,path
-from boto3.session import Session
-from boto3 import client as boto3_client
-from typing import List, Dict
+from shutil import copyfile
+from typing import List, Dict, Iterable, Optional, Any, Union
 from pprint import pprint
 from argparse import ArgumentParser,RawTextHelpFormatter
+from tqdm import tqdm
+
+# 自作クラスを呼び出し
+from my_classes import AwsData
 
 
 def get_headers():
@@ -32,306 +35,116 @@ def get_headers():
 
     }
 
-# AWSデータを取り扱うクラス
-class AwsData:
-    _skip_s3_usage: bool = False
-    _debug: bool = False
-    ec2: list[Dict] = []
-    rds: list[Dict] = []
-    vpc: list[Dict] = []
-    s3: list[Dict] = []
-    security_groups: Dict = {"groups":[], "rules":[]}
-    load_balancer: Dict = {
-        "load_balancers":[], 
-        "rules":[], 
-        "listeners":[],
-        "target_groups":[]}
-    class clients:
-        ec2: boto3_client.EC2
-        rds: boto3_client.RDS
-        load_balancer: boto3_client.ELBv2
-        s3: boto3_client.S3
-    def __init__(self,
-        profile_name: str='default' if not environ.get('AWS_PROFILE') else environ.get('AWS_PROFILE'),
-        region_name: str='us-east-1' if environ.get('AWS_REGION') is None else environ.get('AWS_REGION')):
-        self._session = Session(profile_name=profile_name)
-        self.clients.ec2 = self._session.client('ec2')
-        self.clients.rds = self._session.client('rds')
-        self.clients.load_balancer = self._session.client('elbv2')
-        self.clients.s3 = self._session.client('s3')
-        self.ec2 = self.get_ec2_instances()
-        self.rds = self.get_rds_instances()
-        self.vpc = self.get_vpc()
-        self.s3 = self.get_s3()
-        self.security_groups["groups"] = self.get_security_groups()
-        self.security_groups["rules"] = self.get_security_group_rules()
-        self.load_balancer["load_balancers"] = self.get_load_balancers()
-        self.load_balancer["listeners"] = self.get_load_balancer_listeners()
-        self.load_balancer["target_groups"] = self.get_load_balancer_target_groups()
-        self.load_balancer["rules"] = self.get_load_balancer_rules()
-
-    # VPCを取得
-    def get_vpc(self) -> List[Dict]:
-        vpc = []
-        paginator = self.clients.ec2.get_paginator('describe_vpcs')
-        for page in paginator.paginate():
-            for vpc_item in page['Vpcs']:
-                vpc.append(vpc_item)
-        return vpc
-
-    # EC2インスタンスを取得
-    def get_ec2_instances(self) -> List[Dict]:
-        instances = []
-        paginator = self.clients.ec2.get_paginator('describe_instances')
-        for page in paginator.paginate():
-            for reservation in page['Reservations']:
-                for instance in reservation['Instances']:
-                    instances.append(instance)
-        return instances
-
-    # RDSインスタンスを取得
-    def get_rds_instances(self) -> List[Dict]:
-        instances = []
-        paginator = self.clients.rds.get_paginator('describe_db_instances')
-        for page in paginator.paginate():
-            for instance in page['DBInstances']:
-                instances.append(instance)
-        return instances
-
-    # セキュリティグループを取得
-    def get_security_groups(self) -> List[Dict]:
-        security_groups = []
-        paginator = self.clients.ec2.get_paginator('describe_security_groups')
-        for page in paginator.paginate():
-            for security_group in page['SecurityGroups']:
-                security_groups.append(security_group)
-        return security_groups
-
-    # セキュリティグループルールを取得
-    def get_security_group_rules(self) -> List[Dict]:
-        rules = []
-        paginator = self.clients.ec2.get_paginator('describe_security_group_rules')
-        for page in paginator.paginate():
-            for rule in page['SecurityGroupRules']:
-                rules.append(rule)
-        return rules
-
-    # ロードバランサーを取得
-    def get_load_balancers(self) -> List[Dict]:
-        load_balancers = []
-        paginator = self.clients.load_balancer.get_paginator('describe_load_balancers')
-        for page in paginator.paginate():
-            for load_balancer in page['LoadBalancers']:
-                load_balancers.append(load_balancer)
-        return load_balancers
-
-    # ロードバランサールールを取得
-    def get_load_balancer_rules(self) -> List[Dict]:
-        rules = []
-        paginator = self.clients.load_balancer.get_paginator('describe_rules')
-        for listener in self.load_balancer["listeners"]:
-            for l in listener:
-                for rule in paginator.paginate(
-                    ListenerArn=l['ListenerArn']
-                ):
-                    rules.append(rule)
-        return rules
-
-    # ロードバランサーリスナーを取得
-    def get_load_balancer_listeners(self) -> List[Dict]:
-        listeners = []
-        paginator = self.clients.load_balancer.get_paginator('describe_listeners')
-        for load_balancer in self.load_balancer["load_balancers"]:
-            for listener in paginator.paginate(
-                LoadBalancerArn=load_balancer['LoadBalancerArn']
-            ):
-                listeners.append(listener['Listeners'])
-        return listeners
-
-    # ロードバランサーターゲットグループを取得
-    def get_load_balancer_target_groups(self) -> List[Dict]:
-        target_groups = []
-        paginator = self.clients.load_balancer.get_paginator('describe_target_groups')
-        for load_balancer in self.load_balancer["load_balancers"]:
-            for target_group in paginator.paginate(
-                LoadBalancerArn=load_balancer['LoadBalancerArn']
-            ):
-                target_groups.append(target_group['TargetGroups'])
-        return target_groups
-
-    # ターゲット情報を取得
-    def get_target_group_targets(self) -> List[Dict]:
-        targets = []
-        paginator = self.clients.load_balancer.get_paginator('describe_target_health')
-        for target_group in self.load_balancer["target_groups"]:
-            for target in paginator.paginate(
-                TargetGroupArn=target_group['TargetGroupArn']
-            ):
-                targets.append(target['Targets'])
-        return targets
-
-    def as_dict(self) -> Dict:
-        return {
-            "vpc": self.vpc,
-            "ec2": self.ec2,
-            "rds": self.rds,
-            "s3": self.s3,
-            "security_groups": self.security_groups,
-            "load_balancer": self.load_balancer,
-        }
-
-    # S3を取得
-    def get_s3(self) -> List[Dict]:
-        s3 = []
-        paginator = self.clients.s3.get_paginator('list_buckets')
-        for page in paginator.paginate():
-            for bucket in page['Buckets']:
-                if not self._skip_s3_usage:
-                    bucket['Usage'] = self._get_s3_bucket_usage(bucket)
-                s3.append(bucket)
-        return s3
-
-    #オブジェクトサイズを集計
-    def _get_s3_bucket_usage(self, bucket: Dict) -> Dict:
-        if self._debug:
-            print(f'バケット{bucket["Name"]}のオブジェクトサイズを集計します')
-        objects = []
-        paginator = self.clients.s3.get_paginator('list_objects')
-        for page in paginator.paginate(
-            Bucket=bucket['Name']
-        ):
-            for object in page.get('Contents', []):
-                objects.append(object)
-        return sum([object.get('Size', 0) for object in objects])
-
-def _perm_to_rows(
-    sg: Dict[str, Any],
-    direction: str,
-    perm: Dict[str, Any],
-) -> Iterable[Dict[str, str]]:
-    """
-    direction: "ingress" or "egress"
-    """
-    ip_proto = str(perm.get("IpProtocol", ""))
-    from_port = perm.get("FromPort")
-    to_port = perm.get("ToPort")
-
-    # -1 は全プロトコル/全ポート扱い
-    if ip_proto == "-1":
-        proto = "all"
-        port_range = "all"
-    else:
-        proto = ip_proto
-        if from_port is None and to_port is None:
-            port_range = ""
-        elif from_port == to_port:
-            port_range = str(from_port)
-        else:
-            port_range = f"{from_port}-{to_port}"
-
-    base = {
-        "GroupId": sg.get("GroupId", ""),
-        "GroupName": sg.get("GroupName", ""),
-        "VpcId": sg.get("VpcId", ""),
-        "Direction": direction,
-        "Protocol": proto,
-        "PortRange": port_range,
+def get_defaults(key: str = False):
+    defaults = {
+        'profile_name': ('default'
+            if not environ.get('AWS_PROFILE') 
+                else environ.get('AWS_PROFILE')),
+        'region_name': ('us-east-1'
+            if environ.get('AWS_REGION') is None
+                else environ.get('AWS_REGION')),
+        'file_path': ('./data/aws2csv.json'
+            if not environ.get('AWS2CSV_DATA_FILE')
+                else environ.get('AWS2CSV_DATA_FILE')),
+        'data_dir': ('./data'
+            if not environ.get('AWS2CSV_DATA_DIR')
+                else environ.get('AWS2CSV_DATA_DIR')),
+        'debug': (False
+            if not environ.get('AWS2CSV_DEBUG')
+                else environ.get('AWS2CSV_DEBUG'),False),
+        'skip_s3_usage': (False
+            if not environ.get('AWS2CSV_SKIP_S3_USAGE')
+                else environ.get('AWS2CSV_SKIP_S3_USAGE'),False),
+        'over_write': (False
+            if not environ.get('AWS2CSV_OVER_WRITE')
+                else environ.get('AWS2CSV_OVER_WRITE'),False),
     }
+    return defaults[key] if key in defaults else defaults
 
-    # IPv4 CIDR
-    for r in perm.get("IpRanges", []):
-        cidr = r.get("CidrIp", "")
-        desc = r.get("Description", "") or ""
-        row = base | {
-            "SourceOrDestination": cidr,
-            "SourceOrDestinationType": "cidr_ipv4",
-            "RuleDescription": desc,
-        }
-        yield row
+def get_help(key: str = False):
+    help = {
+        'command':      (f'実行するコマンド\n'+
+        f'  scan: 環境データを取得する\n'+
+        f'  export: 環境データをCSVファイルに出力する'),
+        'description':   'AWS環境データをCSVファイル出力するスクリプトです。',
+        'profile_name':  f'データ取得対象のAWSプロファイル名\n'+
+        f'  デフォルト: {get_defaults("profile_name")}',
+        'region_name':   f'データ取得対象のAWSリージョン\n'+
+        f'  デフォルト: {get_defaults("region_name")}',
+        'debug':         f'デバッグモード\n'+
+        f'  デフォルト: 無効',
+        'skip_s3_usage': f'S3バケットの使用量スキャンをスキップ\n'+
+        f'  デフォルト: 無効',
+        'file_path':     f'環境データの保存先ファイルパス\n'+
+        f'  デフォルト: {get_defaults("file_path")}',
+        'data_dir':      f'環境データ・CSVファイルの保存先ディレクトリ\n'+
+        f'  デフォルト: {get_defaults("data_dir")}',
+        'over_write':    f'環境データファイルを上書きする\n'+
+        f'  デフォルト: 無効',
+    }
+    return help[key] if key in help else help
 
-    # IPv6 CIDR
-    for r in perm.get("Ipv6Ranges", []):
-        cidr = r.get("CidrIpv6", "")
-        desc = r.get("Description", "") or ""
-        row = base | {
-            "SourceOrDestination": cidr,
-            "SourceOrDestinationType": "cidr_ipv6",
-            "RuleDescription": desc,
-        }
-        yield row
+def check_data_file(file_path: str) -> bool:
+    return path.exists(file_path)
 
-    # 参照SG（同一/他SG）
-    for r in perm.get("UserIdGroupPairs", []):
-        gid = r.get("GroupId", "")
-        uid = r.get("UserId", "")
-        desc = r.get("Description", "") or ""
-        val = f"{uid}:{gid}" if uid else gid
-        row = base | {
-            "SourceOrDestination": val,
-            "SourceOrDestinationType": "security_group",
-            "RuleDescription": desc,
-        }
-        yield row
+def check_data_dir(data_dir: str) -> bool:
+    return path.exists(data_dir)
 
-    # Prefix List（S3 などのマネージド宛先に出ることがある）
-    for r in perm.get("PrefixListIds", []):
-        plid = r.get("PrefixListId", "")
-        desc = r.get("Description", "") or ""
-        row = base | {
-            "SourceOrDestination": plid,
-            "SourceOrDestinationType": "prefix_list",
-            "RuleDescription": desc,
-        }
-        yield row
-
-
-def export_sg_rules_csv(region: str, out_path: str, vpc_id: Optional[str] = None) -> None:
-    ec2 = boto3.client("ec2", region_name=region)
-
-    filters = []
-    if vpc_id:
-        filters.append({"Name": "vpc-id", "Values": [vpc_id]})
-
-    paginator = ec2.get_paginator("describe_security_groups")
-    fieldnames = [
-        "GroupId",
-        "GroupName",
-        "VpcId",
-        "Direction",
-        "Protocol",
-        "PortRange",
-        "SourceOrDestinationType",
-        "SourceOrDestination",
-        "RuleDescription",
-    ]
-
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-
-        for page in paginator.paginate(Filters=filters):
-            for sg in page.get("SecurityGroups", []):
-                for perm in sg.get("IpPermissions", []):
-                    for row in _perm_to_rows(sg, "ingress", perm):
-                        w.writerow(row)
-                for perm in sg.get("IpPermissionsEgress", []):
-                    for row in _perm_to_rows(sg, "egress", perm):
-                        w.writerow(row)
 
 # コマンドライン引数をパース
 def parse_args():
-    parser=ArgumentParser(formatter_class=RawTextHelpFormatter)
-    parser.add_argument('--profile', type=str, default='default', help='AWS profile name')
-    parser.add_argument('--region', type=str, default='us-east-1', help='AWS region name')
-    parser.add_argument('--service', type=str, default='ec2', help='AWS service name')
+    commands = ['scan','export']
+    parser=ArgumentParser(formatter_class=RawTextHelpFormatter,description=get_help('description'))
+    parser.add_argument('command', type=str, choices=commands, help=get_help('command'))
+    parser.add_argument('--profile', '-p', type=str, default=get_defaults('profile_name'), help=get_help('profile_name'))
+    parser.add_argument('--region', '-r', type=str, default=get_defaults('region_name'), help=get_help('region_name'))
+    parser.add_argument('--file_path', '-f', type=str, default=get_defaults('file_path'), help=get_help('file_path'))
+    parser.add_argument('--data_dir', '-d', type=str, default=get_defaults('data_dir'), help=get_help('data_dir'))
+    parser.add_argument('--debug', action='store_false', default=get_defaults('debug'), help=get_help('debug'))
+    parser.add_argument('--over-write','-w', action='store_true', default=get_defaults('over_write'), help=get_help('over_write'))
+    parser.add_argument('--skip_s3_usage', '-s', action='store_false', default=get_defaults('skip_s3_usage'), help=get_help('skip_s3_usage'))
     return parser.parse_args()
-
 
 
 def main():
     args=parse_args()
-    aws_data = AwsData(profile_name=args.profile, region_name=args.region)
-    return
+    if args.command == 'scan':
+        scan_aws(
+            args.profile, 
+            args.region, 
+            args.file_path,
+            args.over_write,
+            args.debug)
+    elif args.command == 'export':
+        export_aws(args.file_path)
+    return True
+
+# 環境データを取得
+def scan_aws(profile_name: str, region_name: str,
+     file_path: str=get_defaults('file_path'),
+     over_write: bool=get_defaults('over_write'),debug: bool=get_defaults('debug')) -> AwsData:
+    if (over_write is True) and check_data_file(file_path) is True:
+        print(f'環境データファイル`{file_path}`が存在します。環境データを上書きします。元のファイルを{file_path}.bakに保存します。')
+        copyfile(file_path, file_path + '.bak')
+    else:
+       print(f'環境データを{file_path}に保存しました。')
+    aws_data = AwsData(profile_name=profile_name, region_name=region_name,scan=True,debug=debug)
+    aws_data._save_data(aws_data.as_dict(), file_path)
+    return aws_data
+
+# 環境データをCSVファイルに出力
+def export_aws(file_path: str=get_defaults('file_path')) -> None:
+    print(f'export_aws(): file_path->{file_path}')
+    if check_data_file(file_path) is True:
+        print(f'環境データファイル`{file_path}`から環境データを読み込みます。')
+        aws_data = AwsData(data_file=file_path)
+    print(f'環境データをCSVファイルに出力します。')
+    if not isinstance(aws_data, AwsData):
+        print(f'環境データの読み込みに失敗しました。')
+        return False
+    else:
+        pass
+    return True
 
 if __name__ == '__main__':
     main()

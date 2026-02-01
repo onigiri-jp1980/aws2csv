@@ -1,7 +1,8 @@
 .env
 __pycache__/
 
-app/*.json
-app/*.csv
+app/data/*.json
+app/data/*.json.bak
+app/data/*.csv
 
 .python-version
