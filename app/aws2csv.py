@@ -127,7 +127,7 @@ def scan_aws(profile_name: str, region_name: str,
         print(f'環境データファイル`{file_path}`が存在します。環境データを上書きします。元のファイルを{file_path}.bakに保存します。')
         copyfile(file_path, file_path + '.bak')
     else:
-       print(f'環境データを{file_path}に保存しました。')
+       print(f'環境データを{file_path}に保存します。')
     aws_data = AwsData(profile_name=profile_name, region_name=region_name,scan=True,debug=debug)
     aws_data._save_data(aws_data.as_dict(), file_path)
     return aws_data

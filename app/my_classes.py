@@ -24,6 +24,12 @@ class AwsData:
         rds: boto3_client.RDS
         load_balancer: boto3_client.ELBv2
         s3: boto3_client.S3
+    
+    class CsvHeaders:
+        def __init__(self):
+            self.csv_headers = {}
+            if path.exists(path.join(path.dirname(__file__), 'headers.json')):
+
     # コンストラクタ
     def __init__(self,
         profile_name: str='default' if not environ.get('AWS_PROFILE') else environ.get('AWS_PROFILE'),
@@ -35,7 +41,7 @@ class AwsData:
         self._debug = debug
         self._skip_s3_usage = skip_s3_usage
         self._session = Session(profile_name=profile_name)
-        with tqdm(total=4, desc='AWSクライアントを初期化しています') as pbar:
+        with tqdm(total=4, desc='AWSクライアントを初期化しています',leave=False) as pbar:
             self.clients.ec2 = self._session.client('ec2')
             pbar.update(1)
             self.clients.rds = self._session.client('rds')
@@ -51,7 +57,7 @@ class AwsData:
         else:
             raise ValueError('data_file または scan のいずれかを指定してください')
     def _scan_aws(self):
-        with tqdm(total=8 , desc='AWSの情報を取得しています') as pbar:
+        with tqdm(total=10 , desc='AWSの情報を取得しています',leave=False) as pbar:
             self.ec2 = self.get_ec2_instances()
             pbar.update(1)
             self.rds = self.get_rds_instances()
@@ -60,10 +66,18 @@ class AwsData:
             pbar.update(1)
             self.s3 = self.get_s3()
             pbar.update(1)
-        self.security_groups["groups"] = self.get_security_groups()
-        self.security_groups["rules"] = self.get_security_group_rules()
-        self.load_balancer["load_balancers"] = self.get_load_balancers()
-        self.load_balancer["listeners"] = self.get_load_balancer_listeners()
+            self.security_groups["groups"] = self.get_security_groups()
+            pbar.update(1)
+            self.security_groups["rules"] = self.get_security_group_rules()
+            pbar.update(1)
+            self.load_balancer["load_balancers"] = self.get_load_balancers()
+            pbar.update(1)
+            self.load_balancer["listeners"] = self.get_load_balancer_listeners()
+            pbar.update(1)
+            self.load_balancer["target_groups"] = self.get_load_balancer_target_groups()
+            pbar.update(1)
+            self.load_balancer["rules"] = self.get_load_balancer_rules()
+            pbar.update(1)
     def _load_data(self, data: Dict=None):
         if data is None:
             return
@@ -191,11 +205,13 @@ class AwsData:
     # S3を取得
     def get_s3(self) -> List[Dict]:
         s3 = []
-        with tqdm(total=self._get_s3_bucket_count(), desc='S3バケットの情報を取得しています') as pbar:
+        buckets = self.clients.s3.list_buckets()
+        bucket_count = len(buckets['Buckets'])
+        with tqdm(total=bucket_count, desc='S3バケットの情報を取得しています',leave=False) as buckets_bar:
             for bucket in buckets['Buckets']:
                 if not self._skip_s3_usage:
                     bucket['Usage'] = self._get_s3_bucket_usage(bucket)
-                pbar.update(1,f'S3バケット`{bucket["Name"]}`の情報を取得しています')
+                buckets_bar.update(1)
                 s3.append(bucket)
             return s3
     #S3バケットの数をを集計
@@ -204,16 +220,22 @@ class AwsData:
         return len(buckets['Buckets'])
     #オブジェクトサイズを集計
     def _get_s3_bucket_usage(self, bucket: Dict) -> Dict:
-        if self._debug:
-            print(f'バケット`{bucket["Name"]}`のオブジェクトサイズを集計します')
+        # if self._debug:
+        #     print(f'バケット`{bucket["Name"]}`のオブジェクトサイズを集計します')
         objects = []
+        object_count = 0
         paginator = self.clients.s3.get_paginator('list_objects')
         for page in paginator.paginate(
             Bucket=bucket['Name']
         ):
-            for object in page.get('Contents', []):
+            contents = page.get('Contents', [])
+            object_count += len(contents)
+            for object in contents:
                 objects.append(object)
-        return sum([object.get('Size', 0) for object in objects])
+        return {
+            "Size":sum([content.get('Size', 0) for content in contents]),
+            "ObjectCount":object_count
+        }
 
     def _load_json(self, file_path: str) -> Dict:
         with open(file_path, 'r') as f:
