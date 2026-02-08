@@ -26,11 +26,20 @@ class AwsData:
         rds: boto3_client.RDS
         load_balancer: boto3_client.ELBv2
         s3: boto3_client.S3
-    
+    # CSVヘッダー情報をまとめるサブクラス
     class CsvHeaders:
         def __init__(self):
             self.csv_headers = {}
             if path.exists(path.join(path.dirname(__file__), 'headers.json')):
+                with open(path.join(path.dirname(__file__), 'headers.json'), 'r') as f:
+                    self.csv_headers = json.load(f)
+            else:
+                raise FileNotFoundError('CSVヘッダー情報ファイル`headers.json`が見つかりません')
+        def get_headers(self, service: str) -> List[Dict]:
+            return self.csv_headers[service]
+        def get_field_names(self, service: str) -> List[str]:
+            return [header['Name'] for header in self.get_headers(service)]
+        #def get_keys(self, service: str, key: str) -> str:
 
     # コンストラクタ
     def __init__(self,
@@ -40,10 +49,7 @@ class AwsData:
         scan: bool=False,
         data_file: str=None,
         skip_s3_usage: bool=False):
-        if not path.exists('./headers.json'):
-            raise FileNotFoundError('CSVヘッダー情報ファイル`headers.json`が見つかりません')
-        with open('./headers.json', 'r') as f:
-            self._fieldnames = json.load(f)
+        self.csv_headers = self.CsvHeaders()
         self._debug = debug
         self._skip_s3_usage = skip_s3_usage
         self._session = Session(profile_name=profile_name)
@@ -84,19 +90,31 @@ class AwsData:
             pbar.update(1)
             self.load_balancer["rules"] = self.get_load_balancer_rules()
             pbar.update(1)
+    def _extract_name_tag(self, data: Dict) -> Dict:
+        for item in data:
+            if 'Tags' in item:
+                item['Name'] = self._get_tag_value(item.get('Tags',[]), 'Name')
+            else:
+                item['Name'] = ''
+        return data
+
     def _load_data(self, data: Dict=None):
         if data is None:
             return
-        self.ec2 = data['ec2']
-        self.rds = data['rds']
-        self.vpc = data['vpc']
+        self.ec2 = self._extract_name_tag(data['ec2'])
+        self.rds = self._extract_name_tag(data['rds'])
+        self.vpc = self._extract_name_tag(data['vpc'])
         self.s3 = data['s3']
-        self.security_groups["groups"] = data['security_groups']['groups']
-        self.security_groups["rules"] = data['security_groups']['rules']
+        self.security_groups["groups"] = self._extract_name_tag(data['security_groups']['groups'])
+        self.security_groups["rules"] = self._extract_name_tag(data['security_groups']['rules'])
         self.load_balancer["load_balancers"] = data['load_balancer']['load_balancers']
         self.load_balancer["listeners"] = data['load_balancer']['listeners']
         self.load_balancer["target_groups"] = data['load_balancer']['target_groups']
         self.load_balancer["rules"] = data['load_balancer']['rules']
+
+    # タグの値を取得
+    def _get_tag_value(self, tags: List[Dict], key: str, default: Any=None) -> Any:
+        return next((d['Value'] for d in tags if d['Key'] == key), default)
 
     # VPCを取得
     def get_vpc(self) -> List[Dict]:
@@ -114,6 +132,7 @@ class AwsData:
         for page in paginator.paginate():
             for reservation in page['Reservations']:
                 for instance in reservation['Instances']:
+                    instance['Name'] = self._get_tag_value(instance.get('Tags',[]), 'Name')
                     instances.append(instance)
         return instances
 
@@ -125,6 +144,7 @@ class AwsData:
             for instance in page['DBInstances']:
                 instances.append(instance)
         return instances
+
 
     # セキュリティグループを取得
     def get_security_groups(self) -> List[Dict]:
@@ -261,7 +281,11 @@ class AwsData:
     def build_vpc_csv(self) -> None:
         pass
     def build_s3_csv(self) -> None:
-        pass
+        headers = [self.csv_headers.get_field_names('s3')]
+        csv_writer = csv.DictWriter(self.s3, fieldnames=self.csv_headers.get_headers('s3'))
+        export_data=[]
+        for bucket in self.s3:
+            pass
     def build_security_groups_csv(self) -> None:
         pass
     def build_load_balancer_csv(self) -> None:

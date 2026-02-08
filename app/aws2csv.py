@@ -144,6 +144,9 @@ def export_aws(file_path: str=get_defaults('file_path')) -> None:
         return False
     else:
         pass
+    s3_csv = aws_data.build_s3_csv()
+
+    pprint(s3_csv)
     return True
 
 if __name__ == '__main__':

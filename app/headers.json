@@ -1,7 +1,7 @@
 {
     "ec2":[
         {"name":"VPC ID","key":"vpcId"},
-        {"name":"インスタンス名","tag_key":"Name"},
+        {"name":"インスタンス名","key":"Name"},
         {"name":"インスタンスID","key":"instanceId"},
         {"name":"インスタンスタイプ","key":"instanceType"},
         {"name":"パブリックIPアドレス","key":"publicIp"},
@@ -14,7 +14,7 @@
     ],
     "rds":[
         {"name":"VPC ID","key":"vpcId"},
-        {"name":"DBインスタンス名","tag_key":"Name"},
+        {"name":"DBインスタンス名","tag_key":"Tags.Name"},
         {"name":"DBインスタンスID","key":"dbInstanceId"},
         {"name":"ホスト名","key":"endpoint"},
         {"name":"DBインスタンスタイプ","key":"dbInstanceClass"},
@@ -25,18 +25,15 @@
         {"name":"DBインスタンスクラス","key":"dbInstanceClass"}
     ],
     "sewcurity_group":[
-        {"name":"セキュリティグループ名","tag_key":"Name"},
+        {"name":"セキュリティグループ名","tag_key":"Tags.Name"},
         {"name":"セキュリティグループID","key":"groupId"},
         {"name":"VPC ID","key":"vpcId"},
         {"name":"Description","key":"Description"}
     ],
     "s3":[
-        {"name":"バケット名","tag_key":"Name"},
+        {"name":"バケット名","key":"Name"},
         {"name":"合計オブジェクトサイズ","key":"Size"},
-        {"name":"Description","key":"Description"}
-        {"name":"合計オブジェクトサイズ","key":"ObjectCounts"},
-        "Description"}
-
+        {"name":"収容オブジェクト数","key":"ObjectCounts"}
     ],
     "load_balancer":[
         "ロードバランサー名",
