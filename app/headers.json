@@ -1,0 +1,81 @@
+{
+    "ec2":[
+        {"name":"VPC ID","key":"vpcId"},
+        {"name":"インスタンス名","tag_key":"Name"},
+        {"name":"インスタンスID","key":"instanceId"},
+        {"name":"インスタンスタイプ","key":"instanceType"},
+        {"name":"パブリックIPアドレス","key":"publicIp"},
+        {"name":"プライベートIPアドレス","key":"privateIpAddress"},
+        {"name":"アベイラビリティゾーン","key":"availabilityZone"},
+        {"name":"ステータス","key":"state"},
+        {"name":"起動時間","key":"launchTime"},
+        {"name":"所属セキュリティグループ","key":"securityGroupName"},
+        {"name":"インスタンスロール","key":"instanceRole"}
+    ],
+    "rds":[
+        {"name":"VPC ID","key":"vpcId"},
+        {"name":"DBインスタンス名","tag_key":"Name"},
+        {"name":"DBインスタンスID","key":"dbInstanceId"},
+        {"name":"ホスト名","key":"endpoint"},
+        {"name":"DBインスタンスタイプ","key":"dbInstanceClass"},
+        {"name":"アベイラビリティゾーン","key":"availabilityZone"},
+        {"name":"ステータス","key":"dbInstanceStatus"},
+        {"name":"起動時間","key":"instanceCreateTime"},
+        {"name":"DBインスタンスクラス","key":"dbInstanceClass"},
+        {"name":"DBインスタンスクラス","key":"dbInstanceClass"}
+    ],
+    "sewcurity_group":[
+        {"name":"セキュリティグループ名","tag_key":"Name"},
+        {"name":"セキュリティグループID","key":"groupId"},
+        {"name":"VPC ID","key":"vpcId"},
+        {"name":"Description","key":"Description"}
+    ],
+    "s3":[
+        {"name":"バケット名","tag_key":"Name"},
+        {"name":"合計オブジェクトサイズ","key":"Size"},
+        {"name":"Description","key":"Description"}
+        {"name":"合計オブジェクトサイズ","key":"ObjectCounts"},
+        "Description"}
+
+    ],
+    "load_balancer":[
+        "ロードバランサー名",
+        "ロードバランサーID",
+        "VPC ID",
+        "タイプ",
+        "Description"
+    ],
+    "load_balancer_listener":[
+        "ロードバランサー名",
+        "リスナー名",
+        "リスナーポート",
+        "優先度",
+        "証明書ARN"
+    ],
+    "load_balancer_rule":[
+        "ロードバランサー名",
+        "ルール名",
+        "ルールID",
+        "タイプ",
+        "Description"
+    ],
+    "load_balancer_target_group":[
+        "ロードバランサー名",
+        "ターゲットグループ名",
+        "ターゲットグループID",
+        "VPC ID",
+        "タイプ",
+        "Description",
+        "ターゲットインスタンスID",
+        "ターゲットイポート",
+        "ターゲットインスタンスプロトコル"
+    ],
+    "load_balancer_target_group_target":[
+        "ロードバランサー名",
+        "ターゲットグループ名",
+        "ターゲットグループID",
+        "VPC ID",
+        "タイプ",
+        "Description"
+    ]
+}

@@ -1,13 +1,15 @@
 from boto3.session import Session
 from boto3 import client as boto3_client
 from typing import List, Dict, Iterable, Optional, Any, Union
-from os import environ
+from os import environ,path
 import json
 from tqdm import tqdm
 
 class AwsData:
     _skip_s3_usage: bool = False
     _debug: bool = False
+    _fieldnames: Dict = {
+    }
     ec2: list[Dict] = []
     rds: list[Dict] = []
     vpc: list[Dict] = []
@@ -32,6 +34,10 @@ class AwsData:
         scan: bool=False,
         data_file: str=None,
         skip_s3_usage: bool=False):
+        if not path.exists('./headers.json'):
+            raise FileNotFoundError('CSVヘッダー情報ファイル`headers.json`が見つかりません')
+        with open('./headers.json', 'r') as f:
+            self._fieldnames = json.load(f)
         self._debug = debug
         self._skip_s3_usage = skip_s3_usage
         self._session = Session(profile_name=profile_name)
@@ -226,7 +232,8 @@ class AwsData:
             json.dump(data, f, indent=4,default=str)
         return True
     def build_ec2_csv(self) -> None:
-        pass
+        instances = self.ec2
+        csv_writer = csv.DictWriter(instances, fieldnames=self.ec2_csv_fieldnames)
     def build_rds_csv(self) -> None:
         pass
     def build_vpc_csv(self) -> None:
